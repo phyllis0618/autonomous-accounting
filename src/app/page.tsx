@@ -1,103 +1,144 @@
-import Image from "next/image";
+import { IngestForm } from "@/components/ingest-form";
+import { getLedger, isDemoStoreEnabled } from "@/lib/ledger";
+import { Prisma, type PipelineStatus } from "@prisma/client";
+import Link from "next/link";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+type RecentPipelineRow = {
+  id: string;
+  status: PipelineStatus;
+  createdAt: Date;
+  rawInputType: string;
+};
+
+export default async function Home() {
+  const demo = isDemoStoreEnabled();
+  let recent: RecentPipelineRow[] = [];
+  let dbSetupError: string | null = null;
+
+  try {
+    recent = await getLedger().listRecentPipelines(12);
+  } catch (e) {
+    if (
+      !demo &&
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      (e.code === "P2021" || e.code === "P1001" || e.code === "P1017")
+    ) {
+      dbSetupError =
+        e.code === "P2021"
+          ? "Database tables are missing. Run migrations against DATABASE_URL (see banner below)."
+          : "Cannot reach the database. Check DATABASE_URL and that PostgreSQL is running.";
+    } else {
+      throw e;
+    }
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="mx-auto max-w-4xl px-6 py-12">
+      {demo && (
+        <div
+          className="mb-6 rounded-xl border border-cyan-500/35 bg-cyan-950/35 px-4 py-3 text-sm text-cyan-100"
+          role="status"
+        >
+          <p className="font-medium">Live demo · in-memory store</p>
+          <p className="mt-1 text-cyan-100/85">
+            No database required. Two sample runs are preloaded: one{" "}
+            <strong className="font-medium text-cyan-50">auto-committed</strong>{" "}
+            to the ledger, one{" "}
+            <strong className="font-medium text-cyan-50">
+              queued for human review
+            </strong>{" "}
+            (HITL). Use the form below to execute the full four-stage agent
+            pipeline; in-memory state clears when you restart the dev server.
+            For Postgres + Prisma, set{" "}
+            <code className="rounded bg-black/30 px-1">USE_DATABASE=true</code>{" "}
+            and a standard{" "}
+            <code className="rounded bg-black/30 px-1">DATABASE_URL</code> in{" "}
+            <code className="rounded bg-black/30 px-1">.env</code>.
+          </p>
+          <p className="mt-3 text-xs text-cyan-200/90">
+            Jump to trace:{" "}
+            <Link
+              href="/trace/demo-pipeline-committed"
+              className="font-medium underline decoration-cyan-500/60 underline-offset-2 hover:text-cyan-50"
+            >
+              Committed run
+            </Link>
+            <span className="mx-1.5 text-cyan-600">·</span>
+            <Link
+              href="/trace/demo-pipeline-hitl"
+              className="font-medium underline decoration-cyan-500/60 underline-offset-2 hover:text-cyan-50"
+            >
+              HITL run
+            </Link>
+          </p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      )}
+
+      {dbSetupError && (
+        <div
+          className="mb-8 rounded-xl border border-amber-500/40 bg-amber-950/40 px-4 py-3 text-sm text-amber-100"
+          role="alert"
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <p className="font-medium">Database not ready</p>
+          <p className="mt-2 text-amber-200/90">{dbSetupError}</p>
+          <pre className="mt-3 overflow-x-auto rounded-lg bg-black/40 p-3 font-mono text-xs text-zinc-300">
+            {`DATABASE_URL="postgresql://USER:PASS@localhost:5432/autonomous_accounting"\nUSE_DATABASE=true\nnpx prisma migrate deploy\nnpm run db:seed`}
+          </pre>
+        </div>
+      )}
+
+      <header className="mb-10">
+        <p className="text-xs uppercase tracking-[0.25em] text-zinc-500">
+          Autonomous accounting
+        </p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-100">
+          Multi-stage AI agent pipeline
+        </h1>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
+          Perception → reasoning → principle guardrail → ledger. Zod validates
+          each stage; committed journals post only when the auditor clears the
+          confidence threshold (or use the in-memory demo without Postgres).
+        </p>
+      </header>
+
+      <section className="mb-14">
+        <h2 className="mb-3 text-sm font-medium text-zinc-300">New run</h2>
+        <IngestForm disabled={!!dbSetupError} />
+      </section>
+
+      <section>
+        <h2 className="mb-3 text-sm font-medium text-zinc-300">
+          Recent pipelines
+        </h2>
+        {recent.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            No runs yet. In demo mode you should see sample rows — refresh the
+            page. With a database, migrate and seed first.
+          </p>
+        ) : (
+          <ul className="divide-y divide-white/10 rounded-xl border border-white/10 bg-white/[0.02]">
+            {recent.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/trace/${p.id}`}
+                  className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-white/[0.04]"
+                >
+                  <span className="font-mono text-xs text-violet-300">
+                    {p.id}
+                  </span>
+                  <span className="text-zinc-500">{p.rawInputType}</span>
+                  <span className="text-xs text-zinc-500">{p.status}</span>
+                  <span className="text-xs text-zinc-600">
+                    {new Date(p.createdAt).toLocaleString()}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
